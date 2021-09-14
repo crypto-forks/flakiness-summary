@@ -1,0 +1,11 @@
+name: 'Flakiness Summary'
+description: 'Run test suite multiple times and write results to DB'
+inputs:
+  commit-sha: 
+    description: 'Commit to checkout'
+    required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.commit-sha }}
