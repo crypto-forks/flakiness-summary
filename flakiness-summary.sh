@@ -1,29 +1,60 @@
-#!/bin/sh -l
+#!/usr/bin/env bash
 
 set -e
 
-export PATH="/usr/local/go/bin:/usr/bin:$PATH"
-export GOPATH=$(go env GOPATH)
-export GOBIN=$GOPATH/bin
+case $1 in
+    unit|crypto-unit|integration-unit|integration)
+        suite=$1
+    ;;
+    *)
+        echo "Valid test suite name must be provided."
+        exit 1
+    ;;
+esac
 
 # clone the repo
 git clone https://github.com/onflow/flow-go.git
 cd flow-go
 
 # checkout specified commit
-if [ -z "$1" ]
+if [ -z "$2" ]
 then
     git checkout master
 else
-    git checkout $1
+    git checkout $2
 fi
 
 export COMMIT_SHA=$(git rev-parse HEAD)
 export COMMIT_TIME=$(git show --no-patch --no-notes --pretty='%ct' $COMMIT_SHA)
 
-# setup environment
-make install-tools tidy generate-mocks
+export GOPATH=$(/usr/local/go/bin/go env GOPATH)
+export GOBIN=$GOPATH/bin
+export PATH="/usr/local/go/bin:$GOBIN:$PATH"
 
-# run tests 
-export NUM_RUNS=10
-GO111MODULE=on go test -json -count $NUM_RUNS --tags relic ./... | python3 process_results.py
+make crypto/relic/build
+
+NUM_RUNS=1
+
+case $suite in
+    unit)
+        cd $GOPATH
+        GO111MODULE=on go get github.com/vektra/mockery/cmd/mockery@v1.1.2
+        GO111MODULE=on go get github.com/golang/mock/mockgen@v1.3.1
+        cd -
+        make generate-mocks
+        GO111MODULE=on go test -json -count $NUM_RUNS --tags relic ./... | ../process_results.py
+    ;;
+    crypto-unit)
+        cd ./crypto
+        GO111MODULE=on go test -json -count $NUM_RUNS --tags relic ./... | ../../process_results.py
+    ;;
+    integration-unit)
+        cd ./integration
+        GO111MODULE=on go test -json -count $NUM_RUNS --tags relic `go list ./... | grep -v -e integration/tests -e integration/benchmark` | ../../process_results.py
+    ;;
+    integration)
+        cd ./integration/tests
+        GO111MODULE=on go test -json -count $NUM_RUNS --tags relic ./... | ../../../process_results.py
+    ;;
+esac
+

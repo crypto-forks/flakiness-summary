@@ -1,13 +1,19 @@
 FROM golang:1.16-buster
 
-COPY flakiness-summary.sh /flakiness-summary.sh
-COPY process_results.py /process_results.py
+RUN apt update 
 
-# Install git
-RUN apt-get update     
-RUN apt-get install -y git
+# Install git   
+RUN apt install -y git
 
 # Install cmake
 RUN apt install -y cmake
 
-ENTRYPOINT ["/flakiness-summary.sh"]
+# Install python
+RUN apt install -y python3
+
+COPY flakiness-summary.sh /home/flakiness-summary.sh
+COPY process_results.py /home/process_results.py
+
+WORKDIR /home/
+
+ENTRYPOINT ["/home/flakiness-summary.sh"]

@@ -1,6 +1,11 @@
+#!/usr/bin/env python3
+
 import sys
 import json
+import os
 
+print(os.environ['COMMIT_SHA'])
+print(os.environ['COMMIT_TIME'])
 
 for line in sys.stdin:
     print(line)
@@ -9,4 +14,4 @@ for line in sys.stdin:
 
 # TODO: write results to DB
 
-print("Finished.")
+print('Finished.')
