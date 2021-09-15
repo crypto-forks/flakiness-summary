@@ -53,6 +53,7 @@ case $suite in
         GO111MODULE=on go test -json -count $NUM_RUNS --tags relic `go list ./... | grep -v -e integration/tests -e integration/benchmark` | ../../process_results.py
     ;;
     integration)
+        make docker-build-flow
         cd ./integration/tests
         GO111MODULE=on go test -json -count $NUM_RUNS --tags relic ./... | ../../../process_results.py
     ;;
