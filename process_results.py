@@ -1,6 +1,7 @@
 import sys
 import json
 
+
 for line in sys.stdin:
     print(line)
     obj = json.loads(line)
