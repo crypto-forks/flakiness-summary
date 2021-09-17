@@ -1,6 +1,9 @@
 name: 'Flakiness Summary'
-description: 'Run test suite multiple times and write results to DB'
+description: 'Run test suite multiple times and process results to uncover flakiness'
 inputs:
+  test-suite:
+    description: 'Test suite to run'
+    required: true
   commit-sha: 
     description: 'Commit to checkout'
     required: true
@@ -8,4 +11,5 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
+    - ${{ inputs.test-suite }}
     - ${{ inputs.commit-sha }}

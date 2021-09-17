@@ -14,4 +14,7 @@ for line in sys.stdin:
 
 # TODO: write results to DB
 
+# TODO: output a flakiness summary
+# see https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions#setting-an-output-parameter
+
 print('Finished.')
