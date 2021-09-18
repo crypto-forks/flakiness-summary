@@ -18,7 +18,7 @@ type Event struct {
 
 func main() {
 	fmt.Println("COMMIT_SHA:", os.Getenv("COMMIT_SHA"))
-	fmt.Println("COMMIT_TIME:", os.Getenv("COMMIT_TIME"))
+	fmt.Println("COMMIT_TIMESTAMP:", os.Getenv("COMMIT_TIMESTAMP"))
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {

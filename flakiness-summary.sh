@@ -27,7 +27,7 @@ else
 fi
 
 export COMMIT_SHA=$(git rev-parse HEAD)
-export COMMIT_TIME=$(git show --no-patch --no-notes --pretty='%ct' $COMMIT_SHA)
+export COMMIT_TIMESTAMP=$(git show --no-patch --no-notes --pretty='%ct' $COMMIT_SHA)
 
 export GOPATH=$(/usr/local/go/bin/go env GOPATH)
 export GOBIN=$GOPATH/bin

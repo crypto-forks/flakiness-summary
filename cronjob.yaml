@@ -4,15 +4,25 @@ metadata:
   name: flakiness-summary
 spec:
   schedule: "0 * * * *"
-  concurrencyPolicy: Allow
-  startingDeadlineSeconds: 100
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
       template:
         spec:
           containers:
-          - name: flakiness-summary
-            image: TODO
+          - name: flakiness-summary-unit
+            image: onflow/flakiness-summary:latest
+            args:
+            - unit
+          - name: flakiness-summary-crypto-unit
+            image: onflow/flakiness-summary:latest
+            args:
+            - crypto-unit
+          - name: flakiness-summary-integration-unit
+            image: onflow/flakiness-summary:latest
+            args:
+            - integration-unit
+          - name: flakiness-summary-integration
+            image: onflow/flakiness-summary:latest
+            args:
+            - integration
           restartPolicy: Never
