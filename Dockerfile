@@ -8,11 +8,8 @@ RUN apt install -y git
 # Install cmake
 RUN apt install -y cmake
 
-# Install python
-RUN apt install -y python3
-
 COPY flakiness-summary.sh /home/flakiness-summary.sh
-COPY process_results.py /home/process_results.py
+COPY process_results.go /home/process_results.go
 
 WORKDIR /home/
 
