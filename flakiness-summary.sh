@@ -35,7 +35,7 @@ export PATH="/usr/local/go/bin:$GOBIN:$PATH"
 
 make crypto/relic/build
 
-NUM_RUNS=1
+NUM_RUNS=10
 
 case $category in
     unit)
