@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: flakiness-summary
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: flakiness-summary-unit
+            image: onflow/flakiness-summary:latest
+            args:
+            - unit
+          - name: flakiness-summary-crypto-unit
+            image: onflow/flakiness-summary:latest
+            args:
+            - crypto-unit
+          - name: flakiness-summary-integration-unit
+            image: onflow/flakiness-summary:latest
+            args:
+            - integration-unit
+          - name: flakiness-summary-integration
+            image: onflow/flakiness-summary:latest
+            args:
+            - integration
+          restartPolicy: Never
