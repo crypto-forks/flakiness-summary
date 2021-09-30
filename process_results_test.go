@@ -19,10 +19,18 @@ func TestReadJson_1Count_AllPass(t *testing.T) {
 	assert.NotEmpty(t, expectedJsonBytes)
 
 	json.Unmarshal(expectedJsonBytes, &expectedTestRun)
-	//order Tests alphabetically so it matches actual output - otherwise, equality check will fail
-	sort.Slice(expectedTestRun.PackageResults[0].Tests, func(i, j int) bool {
-		return expectedTestRun.PackageResults[0].Tests[i].Test < expectedTestRun.PackageResults[0].Tests[j].Test
+
+	//sort all package alphabetically
+	sort.Slice(expectedTestRun.PackageResults, func(i, j int) bool {
+		return expectedTestRun.PackageResults[i].Package < expectedTestRun.PackageResults[j].Package
 	})
+
+	//sort all tests alphabetically within each package - otherwise, equality check will fail
+	for k := range expectedTestRun.PackageResults {
+		sort.Slice(expectedTestRun.PackageResults[k].Tests, func(i, j int) bool {
+			return expectedTestRun.PackageResults[k].Tests[i].Test < expectedTestRun.PackageResults[k].Tests[j].Test
+		})
+	}
 
 	//simulate generating raw "go test -json" output by loading output from saved file
 	rawJsonFilePath := "./test/data/raw/test-result-crypto-hash-1-count-pass.json"

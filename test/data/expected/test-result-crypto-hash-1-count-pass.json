@@ -12,7 +12,6 @@
         "ok  \tgithub.com/onflow/flow-go/crypto/hash\t0.349s\n"
       ],
       "tests": [
-
         {
           "test": "TestSanitySha3_256",
           "package": "github.com/onflow/flow-go/crypto/hash",
