@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,22 +11,23 @@ import (
 
 func TestReadJson_1Count_AllPass(t *testing.T) {
 
+	var expectedTestRun TestRun
 	//read in expected JSON from file
 	expectedJsonFilePath := "./test/data/expected/test-result-crypto-hash-1-count-pass.json"
 	expectedJsonBytes, err := ioutil.ReadFile(expectedJsonFilePath)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, expectedJsonBytes)
 
-	//generate actual JSON by sending raw "go test" JSON
+	json.Unmarshal(expectedJsonBytes, &expectedTestRun)
+	//order Tests alphabetically so it matches actual output - otherwise, equality check will fail
+	sort.Slice(expectedTestRun.PackageResults[0].Tests, func(i, j int) bool {
+		return expectedTestRun.PackageResults[0].Tests[i].Test < expectedTestRun.PackageResults[0].Tests[j].Test
+	})
+
+	//simulate generating raw "go test -json" output by loading output from saved file
 	rawJsonFilePath := "./test/data/raw/test-result-crypto-hash-1-count-pass.json"
-	testRun := processTestRun(rawJsonFilePath)
-	actualJsonBytes, err := json.Marshal(testRun)
+	actualTestRun := processTestRun(rawJsonFilePath)
 	assert.Nil(t, err)
-	assert.NotEmpty(t, actualJsonBytes)
 
-	expectedJson := string(expectedJsonBytes)
-	actualJson := string(actualJsonBytes)
-
-	//compare the 2 JSONs
-	assert.JSONEqf(t, expectedJson, actualJson, "TestRun not equal")
+	assert.Equal(t, expectedTestRun, actualTestRun)
 }

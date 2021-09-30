@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -83,6 +84,12 @@ type TestResultPackage struct {
 }
 
 func processTestRun(rawJsonFilePath string) TestRun {
+	var packageResult1 PackageResult
+	packageResult1.Elapsed = 0.349
+	packageResult1.Output = []string{"PASS\n", "ok  \tgithub.com/onflow/flow-go/crypto/hash\t0.349s\n"}
+	packageResult1.Package = "github.com/onflow/flow-go/crypto/hash"
+	//packageResult1.Result = "pass"
+
 	f, err := os.Open(rawJsonFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -95,36 +102,86 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		}
 	}()
 
+	//map of test results - sorted by package name
+	//testMap := make(map[string][]TestResult)
+
+	testMap := make(map[string]TestResult)
+
 	//testResult.Results = append(testResult.Results, )
 	//var results Result
 
 	s := bufio.NewScanner(f)
 	for s.Scan() {
-		var testStep RawTestStep
-		json.Unmarshal(s.Bytes(), &testStep)
+		var rawTestStep RawTestStep
+		json.Unmarshal(s.Bytes(), &rawTestStep)
 
-		switch testStep.Action {
-		case "run":
-		case "pass":
-		case "fail":
-		case "output":
-		default:
-			panic(fmt.Sprintf("unexpected action: %s", testStep.Action))
-		}
-		//if testStep.Elapsed
-		if testStep.Test == "" {
-			if testStep.Action == "pass" || testStep.Action == "fail" {
+		//most raw test steps will have Test value - only package specific steps won't
+		if rawTestStep.Test != "" {
+
+			//check if this test already exists in the map - if so, we add data to it
+
+			//first check if this test exists in the map - create it if doesn't
+			_, ok := testMap[rawTestStep.Test]
+			if !ok {
+				//if it doesn't exist, we create a new TestResult add it to the map
+				var newTest TestResult
+				newTest.Test = rawTestStep.Test
+
+				//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
+				//for passing tests, there are 2 outputs and for failing tests there are more outputs
+				newTest.Output = make([]string, 0)
+
+				testMap[rawTestStep.Test] = newTest
+			}
+
+			//second, check if that test exists in the package - create it if it doesn't, update it if does
+
+			testResult := testMap[rawTestStep.Test]
+
+			switch rawTestStep.Action {
+			case "run":
+				testResult.Package = rawTestStep.Package
+				testMap[rawTestStep.Test] = testResult
+
+			case "output":
+				testResult.Output = append(testResult.Output, rawTestStep.Output)
+				testMap[rawTestStep.Test] = testResult
+
+			case "pass":
+				testResult.Result = rawTestStep.Action
+				testResult.Elapsed = rawTestStep.Elapsed
+				testMap[rawTestStep.Test] = testResult
+
+			case "fail":
+				testResult.Result = rawTestStep.Action
+				testResult.Elapsed = rawTestStep.Elapsed
+				testMap[rawTestStep.Test] = testResult
+			}
+
+		} else {
+			//package level messages won't have a Test value
+			switch rawTestStep.Action {
+			case "output":
+			case "pass":
+				packageResult1.Result = "pass"
+			case "fail":
+				packageResult1.Result = "fail"
+			default:
+				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
+			}
+
+			if rawTestStep.Action == "pass" || rawTestStep.Action == "fail" {
 				fmt.Print("Test: ")
-				fmt.Print(testStep.Test)
+				fmt.Print(rawTestStep.Test)
 
 				fmt.Print(" Action: ")
-				fmt.Print(testStep.Action)
+				fmt.Print(rawTestStep.Action)
 
 				fmt.Print(" Package: ")
-				fmt.Print(testStep.Package)
+				fmt.Print(rawTestStep.Package)
 
 				fmt.Print(" Elapsed: ")
-				fmt.Println(testStep.Elapsed)
+				fmt.Println(rawTestStep.Elapsed)
 			}
 		}
 	}
@@ -134,78 +191,17 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		log.Fatal(err)
 	}
 
-	var testResult1 TestResult
-	testResult1.Elapsed = 0
-	testResult1.Test = "TestSanitySha3_256"
-	testResult1.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult1.Result = "pass"
-	testResult1.Output = []string{"=== RUN   TestSanitySha3_256\n", "--- PASS: TestSanitySha3_256 (0.00s)\n"}
+	for _, v := range testMap {
+		packageResult1.Tests = append(packageResult1.Tests, v)
+	}
 
-	var testResult2 TestResult
-	testResult2.Elapsed = 0
-	testResult2.Test = "TestSanitySha2_256"
-	testResult2.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult2.Result = "pass"
-	testResult2.Output = []string{"=== RUN   TestSanitySha2_256\n", "--- PASS: TestSanitySha2_256 (0.00s)\n"}
+	//packageResult1.Tests = []TestResult{testResult1, testResult2, testResult3, testResult4, testResult5, testResult6, testResult7, testResult8, testResult9}
 
-	var testResult3 TestResult
-	testResult3.Elapsed = 0
-	testResult3.Test = "TestSanitySha3_384"
-	testResult3.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult3.Result = "pass"
-	testResult3.Output = []string{"=== RUN   TestSanitySha3_384\n", "--- PASS: TestSanitySha3_384 (0.00s)\n"}
-
-	var testResult4 TestResult
-	testResult4.Elapsed = 0
-	testResult4.Test = "TestSanitySha2_384"
-	testResult4.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult4.Result = "pass"
-	testResult4.Output = []string{"=== RUN   TestSanitySha2_384\n", "--- PASS: TestSanitySha2_384 (0.00s)\n"}
-
-	var testResult5 TestResult
-	testResult5.Elapsed = 0
-	testResult5.Test = "TestSanityKmac128"
-	testResult5.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult5.Result = "pass"
-	testResult5.Output = []string{"=== RUN   TestSanityKmac128\n", "--- PASS: TestSanityKmac128 (0.00s)\n"}
-
-	var testResult6 TestResult
-	testResult6.Elapsed = 0
-	testResult6.Test = "TestHashersAPI"
-	testResult6.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult6.Result = "pass"
-	testResult6.Output = []string{"=== RUN   TestHashersAPI\n", "    hash_test.go:114: math rand seed is 1632497249121800000\n", "--- PASS: TestHashersAPI (0.00s)\n"}
-
-	var testResult7 TestResult
-	testResult7.Elapsed = 0.23
-	testResult7.Test = "TestSha3"
-	testResult7.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult7.Result = "pass"
-	testResult7.Output = []string{"=== RUN   TestSha3\n", "    hash_test.go:158: math rand seed is 1632497249122032000\n", "--- PASS: TestSha3 (0.23s)\n"}
-
-	var testResult8 TestResult
-	testResult8.Elapsed = 0.1
-	testResult8.Test = "TestSha3/SHA3_256"
-	testResult8.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult8.Result = "pass"
-	testResult8.Output = []string{"=== RUN   TestSha3/SHA3_256\n", "    --- PASS: TestSha3/SHA3_256 (0.10s)\n"}
-
-	var testResult9 TestResult
-	testResult9.Elapsed = 0.12
-	testResult9.Test = "TestSha3/SHA3_384"
-	testResult9.Package = "github.com/onflow/flow-go/crypto/hash"
-	testResult9.Result = "pass"
-	testResult9.Output = []string{"=== RUN   TestSha3/SHA3_384\n", "    --- PASS: TestSha3/SHA3_384 (0.12s)\n"}
-
-	var packageResult1 PackageResult
-	packageResult1.Elapsed = 0.349
-	packageResult1.Output = []string{"PASS\n", "ok  \tgithub.com/onflow/flow-go/crypto/hash\t0.349s\n"}
-	packageResult1.Package = "github.com/onflow/flow-go/crypto/hash"
-	packageResult1.Result = "pass"
-	packageResult1.Tests = []TestResult{testResult1, testResult2, testResult3, testResult4, testResult5, testResult6, testResult7, testResult8, testResult9}
+	sort.Slice(packageResult1.Tests, func(i, j int) bool {
+		return packageResult1.Tests[i].Test < packageResult1.Tests[j].Test
+	})
 
 	var testRun TestRun
-	//testResult.Results.
 	testRun.CommitDate = "Tue Sep 21 18:06:25 2021 -0700"
 	testRun.CommitSha = "46baf6c6be29af9c040bc14195e195848598bbae"
 	testRun.JobRunDate = "Tue Sep 21 21:06:25 2021 -0700"
