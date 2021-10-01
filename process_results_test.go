@@ -30,6 +30,9 @@ func TestReadJson_1Count_AllPass(t *testing.T) {
 		sort.Slice(expectedTestRun.PackageResults[k].Tests, func(i, j int) bool {
 			return expectedTestRun.PackageResults[k].Tests[i].Test < expectedTestRun.PackageResults[k].Tests[j].Test
 		})
+
+		//init TestMap to empty - otherwise get comparison failure because would be nil
+		expectedTestRun.PackageResults[k].TestMap = make(map[string]TestResult)
 	}
 
 	//simulate generating raw "go test -json" output by loading output from saved file

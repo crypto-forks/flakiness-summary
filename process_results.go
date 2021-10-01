@@ -10,13 +10,7 @@ import (
 	"time"
 )
 
-// Raw JSON result step from `go test -json` execution
-// There are 4 types of JSON results (specified by Action value) generated for each test run: run, output, pass, fail
-// sequence of result steps Action types per test:
-// 1. run (once)
-// 2. output (one to many)
-// 3. pass OR fail (once)
-
+//models single line from "go test -json" output
 type RawTestStep struct {
 	Time    time.Time `json:"Time"`
 	Action  string    `json:"Action"`
@@ -26,20 +20,25 @@ type RawTestStep struct {
 	Elapsed float32   `json:"Elapsed"`
 }
 
-type JobOutput struct {
-	CommitSha  string                      `json:"CommitSha"`
-	CommitDate time.Time                   `json:"CommitDate"`
-	JobStarted time.Time                   `json:"JobStarted"`
-	Results    map[string][]TestResult_old `json:"Results"`
+//models full summary of a test run from "go test -json"
+type TestRun struct {
+	CommitSha      string          `json:"commit_sha"`
+	CommitDate     string          `json:"commit_date"`
+	JobRunDate     string          `json:"job_run_date"`
+	PackageResults []PackageResult `json:"results"` // {
 }
 
-type TestResult_old struct {
-	Result  string  `json:"Result"`
-	Elapsed float64 `json:"Elapsed"`
-	Output  string  `json:"Output"`
-	Test    string  `json:"Test"`
+//models test result of an entire package which can have multiple tests
+type PackageResult struct {
+	Package string       `json:"package"`
+	Result  string       `json:"result"`
+	Elapsed float32      `json:"elapsed"`
+	Output  []string     `json:"output"`
+	Tests   []TestResult `json:"tests"`
+	TestMap map[string]TestResult
 }
 
+//models result of a single test that's part of a larger package result
 type TestResult struct {
 	Test    string   `json:"test"`
 	Package string   `json:"package"`
@@ -48,48 +47,15 @@ type TestResult struct {
 	Elapsed float32  `json:"elapsed"`
 }
 
-type PackageResult struct {
-	Package string       `json:"package"`
-	Result  string       `json:"result"`
-	Elapsed float64      `json:"elapsed"`
-	Output  []string     `json:"output"`
-	Tests   []TestResult `json:"tests"`
-}
-
-//converts raw JSON output from "go test" to this struct
-type TestRun struct {
-	CommitSha      string          `json:"commit_sha"`
-	CommitDate     string          `json:"commit_date"`
-	JobRunDate     string          `json:"job_run_date"`
-	PackageResults []PackageResult `json:"results"` // {
-	//PackageResult PackageResult
-	// Package       string          `json:"package"`
-	// Result        string          `json:"result"`
-	// Elapsed       float64         `json:"elapsed"`
-	// Output        []string        `json:"output"`
-	// Tests         []TestResult    `json:"tests"`
-	// Tests   []struct {
-	// 	Test    string   `json:"test"`
-	// 	Package string   `json:"package"`
-	// 	Output  []string `json:"output"`
-	// 	Result  string   `json:"result"`
-	// 	Elapsed int      `json:"elapsed"`
-	// } `json:"tests"`
-	//} `json:"results"`
-}
-
-type TestResultPackage struct {
-	Packages uint
-	Tests    uint
+//models github CI test job
+type JobOutput struct {
+	CommitSha  string                `json:"CommitSha"`
+	CommitDate time.Time             `json:"CommitDate"`
+	JobStarted time.Time             `json:"JobStarted"`
+	Results    map[string]TestResult `json:"Results"`
 }
 
 func processTestRun(rawJsonFilePath string) TestRun {
-	var packageResult1 PackageResult
-	packageResult1.Elapsed = 0.349
-	packageResult1.Output = []string{"PASS\n", "ok  \tgithub.com/onflow/flow-go/crypto/hash\t0.349s\n"}
-	packageResult1.Package = "github.com/onflow/flow-go/crypto/hash"
-	//packageResult1.Result = "pass"
-
 	f, err := os.Open(rawJsonFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -102,86 +68,102 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		}
 	}()
 
-	//map of test results - sorted by package name
-	//testMap := make(map[string][]TestResult)
-
-	testMap := make(map[string]TestResult)
-
-	//testResult.Results = append(testResult.Results, )
-	//var results Result
+	//map of package results
+	packageMap := make(map[string]PackageResult)
 
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		var rawTestStep RawTestStep
 		json.Unmarshal(s.Bytes(), &rawTestStep)
 
+		//check if package result exists to hold test results
+		packageResult, ok := packageMap[rawTestStep.Package]
+		if !ok {
+			//if package doesn't exist, create new package result and add it to map
+			var newPackageResult PackageResult
+			newPackageResult.Package = rawTestStep.Package
+
+			//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
+			//there are usually 2 or more outputs for a package
+			newPackageResult.Output = make([]string, 0)
+
+			//package result will hold map of test results
+			newPackageResult.TestMap = make(map[string]TestResult)
+
+			packageMap[rawTestStep.Package] = newPackageResult
+			packageResult = newPackageResult
+		}
+
 		//most raw test steps will have Test value - only package specific steps won't
 		if rawTestStep.Test != "" {
 
-			//check if this test already exists in the map - if so, we add data to it
-
-			//first check if this test exists in the map - create it if doesn't
-			_, ok := testMap[rawTestStep.Test]
+			//check if this test exists in the test result map - create it if doesn't
+			testResult, ok := packageResult.TestMap[rawTestStep.Test]
 			if !ok {
-				//if it doesn't exist, we create a new TestResult add it to the map
-				var newTest TestResult
-				newTest.Test = rawTestStep.Test
+				//if it doesn't exist, create a new test result add it to the map
+				var newTestResult TestResult
+				newTestResult.Test = rawTestStep.Test
 
 				//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
-				//for passing tests, there are 2 outputs and for failing tests there are more outputs
-				newTest.Output = make([]string, 0)
+				//for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
+				newTestResult.Output = make([]string, 0)
 
-				testMap[rawTestStep.Test] = newTest
+				packageResult.TestMap[rawTestStep.Test] = newTestResult
+
+				testResult = newTestResult
 			}
 
-			//second, check if that test exists in the package - create it if it doesn't, update it if does
-
-			testResult := testMap[rawTestStep.Test]
-
+			//subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
 			switch rawTestStep.Action {
+
+			// Raw JSON result step from `go test -json` execution
+			// There are 4 types of JSON results (specified by Action value) generated for each test run: run, output, pass, fail
+			// sequence of result steps Action types per test:
+			// 1. run (once)
+			// 2. output (one to many)
+			// 3. pass OR fail (once)
+
 			case "run":
 				testResult.Package = rawTestStep.Package
-				testMap[rawTestStep.Test] = testResult
+				//testMap[rawTestStep.Test] = testResult
+				packageResult.TestMap[rawTestStep.Test] = testResult
 
 			case "output":
 				testResult.Output = append(testResult.Output, rawTestStep.Output)
-				testMap[rawTestStep.Test] = testResult
+				//testMap[rawTestStep.Test] = testResult
+				packageResult.TestMap[rawTestStep.Test] = testResult
 
 			case "pass":
 				testResult.Result = rawTestStep.Action
 				testResult.Elapsed = rawTestStep.Elapsed
-				testMap[rawTestStep.Test] = testResult
+				//testMap[rawTestStep.Test] = testResult
+				packageResult.TestMap[rawTestStep.Test] = testResult
 
 			case "fail":
 				testResult.Result = rawTestStep.Action
 				testResult.Elapsed = rawTestStep.Elapsed
-				testMap[rawTestStep.Test] = testResult
-			}
-
-		} else {
-			//package level messages won't have a Test value
-			switch rawTestStep.Action {
-			case "output":
-			case "pass":
-				packageResult1.Result = "pass"
-			case "fail":
-				packageResult1.Result = "fail"
+				//testMap[rawTestStep.Test] = testResult
+				packageResult.TestMap[rawTestStep.Test] = testResult
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
 
-			if rawTestStep.Action == "pass" || rawTestStep.Action == "fail" {
-				fmt.Print("Test: ")
-				fmt.Print(rawTestStep.Test)
-
-				fmt.Print(" Action: ")
-				fmt.Print(rawTestStep.Action)
-
-				fmt.Print(" Package: ")
-				fmt.Print(rawTestStep.Package)
-
-				fmt.Print(" Elapsed: ")
-				fmt.Println(rawTestStep.Elapsed)
+		} else {
+			//package level raw messages won't have a Test value
+			switch rawTestStep.Action {
+			case "output":
+				packageResult.Output = append(packageResult.Output, rawTestStep.Output)
+				packageMap[rawTestStep.Package] = packageResult
+			case "pass":
+				packageResult.Result = rawTestStep.Action
+				packageResult.Elapsed = rawTestStep.Elapsed
+				packageMap[rawTestStep.Package] = packageResult
+			case "fail":
+				packageResult.Result = rawTestStep.Action
+				packageResult.Elapsed = rawTestStep.Elapsed
+				packageMap[rawTestStep.Package] = packageResult
+			default:
+				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
 		}
 	}
@@ -191,21 +173,40 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		log.Fatal(err)
 	}
 
-	for _, v := range testMap {
-		packageResult1.Tests = append(packageResult1.Tests, v)
+	//transfer each test result map in each package result to a test result slice
+	for j, pr := range packageMap {
+		for _, tr := range pr.TestMap {
+			pr.Tests = append(pr.Tests, tr)
+		}
+		packageMap[j] = pr
+
+		//clear test result map once all values transfered to slice - needed for testing so will check against an empty map
+		for k := range packageMap[j].TestMap {
+			delete(packageMap[j].TestMap, k)
+		}
 	}
 
-	//packageResult1.Tests = []TestResult{testResult1, testResult2, testResult3, testResult4, testResult5, testResult6, testResult7, testResult8, testResult9}
-
-	sort.Slice(packageResult1.Tests, func(i, j int) bool {
-		return packageResult1.Tests[i].Test < packageResult1.Tests[j].Test
-	})
+	//sort all the test results in each package result slice - needed for testing so it's easy to compare ordered tests
+	for _, pr := range packageMap {
+		sort.Slice(pr.Tests, func(i, j int) bool {
+			return pr.Tests[i].Test < pr.Tests[j].Test
+		})
+	}
 
 	var testRun TestRun
 	testRun.CommitDate = "Tue Sep 21 18:06:25 2021 -0700"
 	testRun.CommitSha = "46baf6c6be29af9c040bc14195e195848598bbae"
 	testRun.JobRunDate = "Tue Sep 21 21:06:25 2021 -0700"
-	testRun.PackageResults = []PackageResult{packageResult1}
+
+	//add all the package results to the test run
+	for _, pr := range packageMap {
+		testRun.PackageResults = append(testRun.PackageResults, pr)
+	}
+
+	//sort all package results in the test run
+	sort.Slice(testRun.PackageResults, func(i, j int) bool {
+		return testRun.PackageResults[i].Package < testRun.PackageResults[j].Package
+	})
 
 	return testRun
 }
@@ -232,7 +233,7 @@ func main() {
 		CommitSha:  os.Getenv("COMMIT_SHA"),
 		CommitDate: commitDate,
 		JobStarted: jobStarted,
-		Results:    make(map[string][]TestResult_old),
+		Results:    make(map[string]TestResult),
 	}
 
 	fmt.Println(jobOutput)
