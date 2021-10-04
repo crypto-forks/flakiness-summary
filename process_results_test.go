@@ -9,11 +9,36 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReadJson_1Count_AllPass(t *testing.T) {
+type ProcessTestRunData struct {
+	expectedJsonFilePath string
+	rawJsonFilePath      string
+}
 
+//data driven table test
+func TestProcessTestRun(t *testing.T) {
+	processTestMap2 := map[string]ProcessTestRunData{
+		"1Count_AllPass": {
+			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-pass.json",
+			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-pass.json",
+		},
+		"1Count_Fail": {
+			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-fail.json",
+			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-fail.json",
+		},
+	}
+
+	for k, pt := range processTestMap2 {
+		t.Run(k, func(t *testing.T) {
+			runProcessTestRun(t, pt.expectedJsonFilePath, pt.rawJsonFilePath)
+		})
+	}
+}
+
+//HELPERS - UTILITIES
+
+func runProcessTestRun(t *testing.T, expectedJsonFilePath string, rawJsonFilePath string) {
 	var expectedTestRun TestRun
 	//read in expected JSON from file
-	expectedJsonFilePath := "./test/data/expected/test-result-crypto-hash-1-count-pass.json"
 	expectedJsonBytes, err := ioutil.ReadFile(expectedJsonFilePath)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, expectedJsonBytes)
@@ -36,7 +61,6 @@ func TestReadJson_1Count_AllPass(t *testing.T) {
 	}
 
 	//simulate generating raw "go test -json" output by loading output from saved file
-	rawJsonFilePath := "./test/data/raw/test-result-crypto-hash-1-count-pass.json"
 	actualTestRun := processTestRun(rawJsonFilePath)
 	assert.Nil(t, err)
 
