@@ -96,25 +96,6 @@ func processTestRun(rawJsonFilePath string) TestRun {
 
 		//most raw test steps will have Test value - only package specific steps won't
 		if rawTestStep.Test != "" {
-
-			//check if this test exists in the test result map - create it if doesn't
-			testResults, ok := packageResult.TestMap[rawTestStep.Test]
-			if !ok {
-				//if it doesn't exist, create a new test result add it to the map
-				var newTestResult TestResult
-				newTestResult.Test = rawTestStep.Test
-
-				//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
-				//for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
-				newTestResult.Output = make([]string, 0)
-
-				newTestResults := []TestResult{newTestResult}
-
-				packageResult.TestMap[rawTestStep.Test] = newTestResults
-
-				testResults = newTestResults
-			}
-
 			//subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
 			switch rawTestStep.Action {
 
@@ -126,21 +107,58 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			// 3. pass OR fail (once)
 
 			case "run":
-				testResults[0].Package = rawTestStep.Package
+				testResults, ok := packageResult.TestMap[rawTestStep.Test]
+
+				var newTestResult TestResult
+				newTestResult.Test = rawTestStep.Test
+
+				//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
+				//for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
+				newTestResult.Output = make([]string, 0)
+
+				//if test result doesn't exist, create a new test result add it to the test result slice
+				if !ok {
+
+					newTestResults := []TestResult{newTestResult}
+
+					packageResult.TestMap[rawTestStep.Test] = newTestResults
+
+					testResults = newTestResults
+				} else {
+					//test result exists but it's a new count / run - append to test result slice
+					packageResult.TestMap[rawTestStep.Test] = append(packageResult.TestMap[rawTestStep.Test], newTestResult)
+				}
+				lastIndex := len(testResults) - 1
+				testResults[lastIndex].Package = rawTestStep.Package
 				packageResult.TestMap[rawTestStep.Test] = testResults
 
 			case "output":
-				testResults[0].Output = append(testResults[0].Output, rawTestStep.Output)
+				testResults, ok := packageResult.TestMap[rawTestStep.Test]
+				if !ok {
+					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
+				}
+				lastIndex := len(testResults) - 1
+				testResults[lastIndex].Output = append(testResults[lastIndex].Output, rawTestStep.Output)
 				packageResult.TestMap[rawTestStep.Test] = testResults
 
 			case "pass":
-				testResults[0].Result = rawTestStep.Action
-				testResults[0].Elapsed = rawTestStep.Elapsed
+				testResults, ok := packageResult.TestMap[rawTestStep.Test]
+				if !ok {
+					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
+				}
+				lastIndex := len(testResults) - 1
+				testResults[lastIndex].Result = rawTestStep.Action
+				testResults[lastIndex].Elapsed = rawTestStep.Elapsed
 				packageResult.TestMap[rawTestStep.Test] = testResults
 
 			case "fail":
-				testResults[0].Result = rawTestStep.Action
-				testResults[0].Elapsed = rawTestStep.Elapsed
+				testResults, ok := packageResult.TestMap[rawTestStep.Test]
+				if !ok {
+					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
+				}
+				lastIndex := len(testResults) - 1
+				testResults[lastIndex].Result = rawTestStep.Action
+				testResults[lastIndex].Elapsed = rawTestStep.Elapsed
 				packageResult.TestMap[rawTestStep.Test] = testResults
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
