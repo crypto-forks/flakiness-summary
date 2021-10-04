@@ -107,7 +107,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			// 3. pass OR fail (once)
 
 			case "run":
-				testResults, ok := packageResult.TestMap[rawTestStep.Test]
+				//testResults, ok := packageResult.TestMap[rawTestStep.Test]
 
 				var newTestResult TestResult
 				newTestResult.Test = rawTestStep.Test
@@ -123,43 +123,47 @@ func processTestRun(rawJsonFilePath string) TestRun {
 
 					packageResult.TestMap[rawTestStep.Test] = newTestResults
 
-					testResults = newTestResults
+					//testResults = newTestResults
 				} else {
 					//test result exists but it's a new count / run - append to test result slice
 					packageResult.TestMap[rawTestStep.Test] = append(packageResult.TestMap[rawTestStep.Test], newTestResult)
 				}
-				lastIndex := len(testResults) - 1
-				testResults[lastIndex].Package = rawTestStep.Package
-				packageResult.TestMap[rawTestStep.Test] = testResults
+				//lastIndex := len(testResults) - 1
+				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
+				//testResults[lastIndex].Package = rawTestStep.Package
+				packageResult.TestMap[rawTestStep.Test][lastIndex].Package = rawTestStep.Package
 
 			case "output":
 				testResults, ok := packageResult.TestMap[rawTestStep.Test]
 				if !ok {
 					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
 				}
-				lastIndex := len(testResults) - 1
-				testResults[lastIndex].Output = append(testResults[lastIndex].Output, rawTestStep.Output)
-				packageResult.TestMap[rawTestStep.Test] = testResults
+				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
+				//testResults[lastIndex].Output = append(testResults[lastIndex].Output, rawTestStep.Output)
+				packageResult.TestMap[rawTestStep.Test][lastIndex].Output = append(testResults[lastIndex].Output, rawTestStep.Output)
 
 			case "pass":
-				testResults, ok := packageResult.TestMap[rawTestStep.Test]
-				if !ok {
-					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
-				}
-				lastIndex := len(testResults) - 1
-				testResults[lastIndex].Result = rawTestStep.Action
-				testResults[lastIndex].Elapsed = rawTestStep.Elapsed
-				packageResult.TestMap[rawTestStep.Test] = testResults
+				// testResults, ok := packageResult.TestMap[rawTestStep.Test]
+				// if !ok {
+				// 	panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
+				// }
+				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
+				packageResult.TestMap[rawTestStep.Test][lastIndex].Result = rawTestStep.Action
+				packageResult.TestMap[rawTestStep.Test][lastIndex].Elapsed = rawTestStep.Elapsed
+				// testResults[lastIndex].Result = rawTestStep.Action
+				// testResults[lastIndex].Elapsed = rawTestStep.Elapsed
 
 			case "fail":
-				testResults, ok := packageResult.TestMap[rawTestStep.Test]
-				if !ok {
-					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
-				}
-				lastIndex := len(testResults) - 1
-				testResults[lastIndex].Result = rawTestStep.Action
-				testResults[lastIndex].Elapsed = rawTestStep.Elapsed
-				packageResult.TestMap[rawTestStep.Test] = testResults
+				// testResults, ok := packageResult.TestMap[rawTestStep.Test]
+				// if !ok {
+				// 	panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
+				// }
+				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
+				packageResult.TestMap[rawTestStep.Test][lastIndex].Result = rawTestStep.Action
+				packageResult.TestMap[rawTestStep.Test][lastIndex].Elapsed = rawTestStep.Elapsed
+
+				// testResults[lastIndex].Result = rawTestStep.Action
+				// testResults[lastIndex].Elapsed = rawTestStep.Elapsed
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
@@ -190,11 +194,11 @@ func processTestRun(rawJsonFilePath string) TestRun {
 	}
 
 	//transfer each test result map in each package result to a test result slice
-	for j, pr := range packageMap {
-		for _, tr := range pr.TestMap {
-			pr.Tests = append(pr.Tests, tr[0])
+	for j, packageResult := range packageMap {
+		for _, testResults := range packageResult.TestMap {
+			packageResult.Tests = append(packageResult.Tests, testResults...)
 		}
-		packageMap[j] = pr
+		packageMap[j] = packageResult
 
 		//clear test result map once all values transfered to slice - needed for testing so will check against an empty map
 		for k := range packageMap[j].TestMap {
