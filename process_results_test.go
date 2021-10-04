@@ -25,6 +25,10 @@ func TestProcessTestRun(t *testing.T) {
 			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-fail.json",
 			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-fail.json",
 		},
+		// "2Count_Pass": {
+		// 	expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-2-count-pass.json",
+		// 	rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-2-count-pass.json",
+		// },
 	}
 
 	for k, pt := range processTestMap2 {
@@ -57,7 +61,7 @@ func runProcessTestRun(t *testing.T, expectedJsonFilePath string, rawJsonFilePat
 		})
 
 		//init TestMap to empty - otherwise get comparison failure because would be nil
-		expectedTestRun.PackageResults[k].TestMap = make(map[string]TestResult)
+		expectedTestRun.PackageResults[k].TestMap = make(map[string][]TestResult)
 	}
 
 	//simulate generating raw "go test -json" output by loading output from saved file

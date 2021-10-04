@@ -35,7 +35,7 @@ type PackageResult struct {
 	Elapsed float32      `json:"elapsed"`
 	Output  []string     `json:"output"`
 	Tests   []TestResult `json:"tests"`
-	TestMap map[string]TestResult
+	TestMap map[string][]TestResult
 }
 
 //models result of a single test that's part of a larger package result
@@ -88,7 +88,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			newPackageResult.Output = make([]string, 0)
 
 			//package result will hold map of test results
-			newPackageResult.TestMap = make(map[string]TestResult)
+			newPackageResult.TestMap = make(map[string][]TestResult)
 
 			packageMap[rawTestStep.Package] = newPackageResult
 			packageResult = newPackageResult
@@ -98,7 +98,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		if rawTestStep.Test != "" {
 
 			//check if this test exists in the test result map - create it if doesn't
-			testResult, ok := packageResult.TestMap[rawTestStep.Test]
+			testResults, ok := packageResult.TestMap[rawTestStep.Test]
 			if !ok {
 				//if it doesn't exist, create a new test result add it to the map
 				var newTestResult TestResult
@@ -108,9 +108,11 @@ func processTestRun(rawJsonFilePath string) TestRun {
 				//for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
 				newTestResult.Output = make([]string, 0)
 
-				packageResult.TestMap[rawTestStep.Test] = newTestResult
+				newTestResults := []TestResult{newTestResult}
 
-				testResult = newTestResult
+				packageResult.TestMap[rawTestStep.Test] = newTestResults
+
+				testResults = newTestResults
 			}
 
 			//subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
@@ -124,26 +126,22 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			// 3. pass OR fail (once)
 
 			case "run":
-				testResult.Package = rawTestStep.Package
-				//testMap[rawTestStep.Test] = testResult
-				packageResult.TestMap[rawTestStep.Test] = testResult
+				testResults[0].Package = rawTestStep.Package
+				packageResult.TestMap[rawTestStep.Test] = testResults
 
 			case "output":
-				testResult.Output = append(testResult.Output, rawTestStep.Output)
-				//testMap[rawTestStep.Test] = testResult
-				packageResult.TestMap[rawTestStep.Test] = testResult
+				testResults[0].Output = append(testResults[0].Output, rawTestStep.Output)
+				packageResult.TestMap[rawTestStep.Test] = testResults
 
 			case "pass":
-				testResult.Result = rawTestStep.Action
-				testResult.Elapsed = rawTestStep.Elapsed
-				//testMap[rawTestStep.Test] = testResult
-				packageResult.TestMap[rawTestStep.Test] = testResult
+				testResults[0].Result = rawTestStep.Action
+				testResults[0].Elapsed = rawTestStep.Elapsed
+				packageResult.TestMap[rawTestStep.Test] = testResults
 
 			case "fail":
-				testResult.Result = rawTestStep.Action
-				testResult.Elapsed = rawTestStep.Elapsed
-				//testMap[rawTestStep.Test] = testResult
-				packageResult.TestMap[rawTestStep.Test] = testResult
+				testResults[0].Result = rawTestStep.Action
+				testResults[0].Elapsed = rawTestStep.Elapsed
+				packageResult.TestMap[rawTestStep.Test] = testResults
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
@@ -176,7 +174,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 	//transfer each test result map in each package result to a test result slice
 	for j, pr := range packageMap {
 		for _, tr := range pr.TestMap {
-			pr.Tests = append(pr.Tests, tr)
+			pr.Tests = append(pr.Tests, tr[0])
 		}
 		packageMap[j] = pr
 
