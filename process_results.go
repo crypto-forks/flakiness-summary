@@ -208,7 +208,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 
 	//sort all the test results in each package result slice - needed for testing so it's easy to compare ordered tests
 	for _, pr := range packageMap {
-		sort.Slice(pr.Tests, func(i, j int) bool {
+		sort.SliceStable(pr.Tests, func(i, j int) bool {
 			return pr.Tests[i].Test < pr.Tests[j].Test
 		})
 	}
@@ -224,7 +224,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 	}
 
 	//sort all package results in the test run
-	sort.Slice(testRun.PackageResults, func(i, j int) bool {
+	sort.SliceStable(testRun.PackageResults, func(i, j int) bool {
 		return testRun.PackageResults[i].Package < testRun.PackageResults[j].Package
 	})
 

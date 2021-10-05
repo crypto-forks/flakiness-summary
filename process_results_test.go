@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"sort"
 	"testing"
@@ -25,10 +26,10 @@ func TestProcessTestRun(t *testing.T) {
 			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-fail.json",
 			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-fail.json",
 		},
-		// "2Count_Pass": {
-		// 	expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-2-count-pass.json",
-		// 	rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-2-count-pass.json",
-		// },
+		"2Count_Pass": {
+			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-2-count-pass.json",
+			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-2-count-pass.json",
+		},
 	}
 
 	for k, pt := range processTestMap2 {
@@ -68,5 +69,39 @@ func runProcessTestRun(t *testing.T, expectedJsonFilePath string, rawJsonFilePat
 	actualTestRun := processTestRun(rawJsonFilePath)
 	assert.Nil(t, err)
 
+	//it's difficult to determine why 2 test runs aren't equal, so we will check the different sub components of them to see where a potential discrepancy exists
+	assert.Equal(t, expectedTestRun.CommitDate, actualTestRun.CommitDate)
+	assert.Equal(t, expectedTestRun.CommitSha, actualTestRun.CommitSha)
+	assert.Equal(t, expectedTestRun.JobRunDate, actualTestRun.JobRunDate)
+	assert.Equal(t, len(expectedTestRun.PackageResults), len(actualTestRun.PackageResults))
+
+	//check each package
+	for packageIndex := range expectedTestRun.PackageResults {
+		assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Elapsed, actualTestRun.PackageResults[packageIndex].Elapsed)
+		assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Package, actualTestRun.PackageResults[packageIndex].Package)
+		assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Result, actualTestRun.PackageResults[packageIndex].Result)
+		assert.Empty(t, expectedTestRun.PackageResults[packageIndex].TestMap, actualTestRun.PackageResults[packageIndex].TestMap)
+
+		//check outputs of each package result
+		assert.Equal(t, len(expectedTestRun.PackageResults[packageIndex].Output), len(actualTestRun.PackageResults[packageIndex].Output))
+		for packageOutputIndex := range expectedTestRun.PackageResults[packageIndex].Output {
+			assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Output[packageOutputIndex], actualTestRun.PackageResults[packageIndex].Output[packageOutputIndex])
+		}
+
+		//check all tests results of each package
+		assert.Equal(t, len(expectedTestRun.PackageResults[packageIndex].Tests), len(actualTestRun.PackageResults[packageIndex].Tests))
+		for testResultIndex := range expectedTestRun.PackageResults[packageIndex].Tests {
+			assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Package, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Package)
+			assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Test, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Test)
+			assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Elapsed, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Elapsed)
+			assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Result, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Result)
+
+			//check all outputs of each test result
+			assert.Equal(t, len(expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output), len(actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output))
+			for testResultOutputIndex := range expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output {
+				assert.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output[testResultOutputIndex], actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output[testResultOutputIndex], fmt.Sprintf("error message; PackageResult[%d] TestResult[%d] Output[%d]", packageIndex, testResultIndex, testResultOutputIndex))
+			}
+		}
+	}
 	assert.Equal(t, expectedTestRun, actualTestRun)
 }
