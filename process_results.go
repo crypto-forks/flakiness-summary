@@ -110,7 +110,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			// sequence of result steps Action types per test:
 			// 1. run (once)
 			// 2. output (one to many)
-			// 3. pass OR fail (once)
+			// 3. pass OR fail OR skip (once)
 
 			case "run":
 				var newTestResult TestResult
@@ -138,11 +138,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 				}
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Output = append(testResults[lastTestResultIndex].Output, rawTestStep.Output)
 
-			case "pass":
-				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Result = rawTestStep.Action
-				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
-
-			case "fail":
+			case "pass", "fail", "skip":
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Result = rawTestStep.Action
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
 
