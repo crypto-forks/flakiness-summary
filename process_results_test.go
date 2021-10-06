@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sort"
 	"testing"
 
@@ -65,10 +66,17 @@ func runProcessTestRun(t *testing.T, expectedJsonFilePath string, rawJsonFilePat
 		expectedTestRun.PackageResults[k].TestMap = make(map[string][]TestResult)
 	}
 
+	assert.NoError(t, os.Setenv("COMMIT_DATE", "Tue Sep 21 18:06:25 2021 -0700"))
+	assert.NoError(t, os.Setenv("COMMIT_SHA", "46baf6c6be29af9c040bc14195e195848598bbae"))
+	assert.NoError(t, os.Setenv("JOB_DATE", "Tue Sep 21 21:06:25 2021 -0700"))
+
 	//simulate generating raw "go test -json" output by loading output from saved file
 	actualTestRun := processTestRun(rawJsonFilePath)
-	assert.Nil(t, err)
 
+	checkTestRuns(t, expectedTestRun, actualTestRun)
+}
+
+func checkTestRuns(t *testing.T, expectedTestRun TestRun, actualTestRun TestRun) {
 	//it's difficult to determine why 2 test runs aren't equal, so we will check the different sub components of them to see where a potential discrepancy exists
 	assert.Equal(t, expectedTestRun.CommitDate, actualTestRun.CommitDate)
 	assert.Equal(t, expectedTestRun.CommitSha, actualTestRun.CommitSha)

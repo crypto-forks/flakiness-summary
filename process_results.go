@@ -77,8 +77,8 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		json.Unmarshal(s.Bytes(), &rawTestStep)
 
 		//check if package result exists to hold test results
-		packageResult, ok := packageMap[rawTestStep.Package]
-		if !ok {
+		packageResult, packageResultExists := packageMap[rawTestStep.Package]
+		if !packageResultExists {
 			//if package doesn't exist, create new package result and add it to map
 			var newPackageResult PackageResult
 			newPackageResult.Package = rawTestStep.Package
@@ -96,6 +96,12 @@ func processTestRun(rawJsonFilePath string) TestRun {
 
 		//most raw test steps will have Test value - only package specific steps won't
 		if rawTestStep.Test != "" {
+
+			lastTestResultIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
+			if lastTestResultIndex < 0 {
+				lastTestResultIndex = 0
+			}
+
 			//subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
 			switch rawTestStep.Action {
 
@@ -107,8 +113,6 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			// 3. pass OR fail (once)
 
 			case "run":
-				//testResults, ok := packageResult.TestMap[rawTestStep.Test]
-
 				var newTestResult TestResult
 				newTestResult.Test = rawTestStep.Test
 
@@ -117,53 +121,31 @@ func processTestRun(rawJsonFilePath string) TestRun {
 				newTestResult.Output = make([]string, 0)
 
 				//if test result doesn't exist, create a new test result add it to the test result slice
-				if !ok {
-
+				if !packageResultExists {
 					newTestResults := []TestResult{newTestResult}
-
 					packageResult.TestMap[rawTestStep.Test] = newTestResults
-
-					//testResults = newTestResults
 				} else {
 					//test result exists but it's a new count / run - append to test result slice
 					packageResult.TestMap[rawTestStep.Test] = append(packageResult.TestMap[rawTestStep.Test], newTestResult)
+					lastTestResultIndex = len(packageResult.TestMap[rawTestStep.Test]) - 1
 				}
-				//lastIndex := len(testResults) - 1
-				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
-				//testResults[lastIndex].Package = rawTestStep.Package
-				packageResult.TestMap[rawTestStep.Test][lastIndex].Package = rawTestStep.Package
+				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Package = rawTestStep.Package
 
 			case "output":
 				testResults, ok := packageResult.TestMap[rawTestStep.Test]
 				if !ok {
 					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
 				}
-				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
-				//testResults[lastIndex].Output = append(testResults[lastIndex].Output, rawTestStep.Output)
-				packageResult.TestMap[rawTestStep.Test][lastIndex].Output = append(testResults[lastIndex].Output, rawTestStep.Output)
+				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Output = append(testResults[lastTestResultIndex].Output, rawTestStep.Output)
 
 			case "pass":
-				// testResults, ok := packageResult.TestMap[rawTestStep.Test]
-				// if !ok {
-				// 	panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
-				// }
-				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
-				packageResult.TestMap[rawTestStep.Test][lastIndex].Result = rawTestStep.Action
-				packageResult.TestMap[rawTestStep.Test][lastIndex].Elapsed = rawTestStep.Elapsed
-				// testResults[lastIndex].Result = rawTestStep.Action
-				// testResults[lastIndex].Elapsed = rawTestStep.Elapsed
+				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Result = rawTestStep.Action
+				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
 
 			case "fail":
-				// testResults, ok := packageResult.TestMap[rawTestStep.Test]
-				// if !ok {
-				// 	panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
-				// }
-				lastIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
-				packageResult.TestMap[rawTestStep.Test][lastIndex].Result = rawTestStep.Action
-				packageResult.TestMap[rawTestStep.Test][lastIndex].Elapsed = rawTestStep.Elapsed
+				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Result = rawTestStep.Action
+				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
 
-				// testResults[lastIndex].Result = rawTestStep.Action
-				// testResults[lastIndex].Elapsed = rawTestStep.Elapsed
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
@@ -213,10 +195,25 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		})
 	}
 
+	commitSha := os.Getenv("COMMIT_SHA")
+	if commitSha == "" {
+		panic("COMMIT_SHA can't be empty")
+	}
+
+	commitDate := os.Getenv("COMMIT_DATE")
+	if commitDate == "" {
+		panic("COMMIT_DATE can't be empty")
+	}
+
+	jobDate := os.Getenv("JOB_DATE")
+	if jobDate == "" {
+		panic("JOB_DATE can't be empty")
+	}
+
 	var testRun TestRun
-	testRun.CommitDate = "Tue Sep 21 18:06:25 2021 -0700"
-	testRun.CommitSha = "46baf6c6be29af9c040bc14195e195848598bbae"
-	testRun.JobRunDate = "Tue Sep 21 21:06:25 2021 -0700"
+	testRun.CommitDate = commitDate
+	testRun.CommitSha = commitSha
+	testRun.JobRunDate = jobDate
 
 	//add all the package results to the test run
 	for _, pr := range packageMap {
