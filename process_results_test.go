@@ -11,49 +11,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type ProcessTestRunData struct {
-	expectedJsonFilePath string
-	rawJsonFilePath      string
-}
-
 //data driven table test
 func TestProcessTestRun(t *testing.T) {
-	processTestMap := map[string]ProcessTestRunData{
-		"1 count all pass": {
-			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-pass.json",
-			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-pass.json",
-		},
-		"1 count 1 fail the rest pass": {
-			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-fail.json",
-			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-fail.json",
-		},
-		"1 count 2 skiped the rest pass": {
-			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-1-count-skip-pass.json",
-			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-1-count-skip-pass.json",
-		},
-		"2 count all pass": {
-			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-2-count-pass.json",
-			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-2-count-pass.json",
-		},
-		"10 count all pass": {
-			expectedJsonFilePath: "./test/data/expected/test-result-crypto-hash-10-count-pass.json",
-			rawJsonFilePath:      "./test/data/raw/test-result-crypto-hash-10-count-pass.json",
-		},
+	processTestMap := map[string]string{
+		"1 count all pass":               "test-result-crypto-hash-1-count-pass.json",
+		"1 count 1 fail the rest pass":   "test-result-crypto-hash-1-count-fail.json",
+		"1 count 2 skiped the rest pass": "test-result-crypto-hash-1-count-skip-pass.json",
+		"2 count all pass":               "test-result-crypto-hash-2-count-pass.json",
+		"10 count all pass":              "test-result-crypto-hash-10-count-pass.json",
+		//"10 count failures":              "test-result-crypto-hash-10-count-fail.json",
 	}
 
 	for k, pt := range processTestMap {
 		t.Run(k, func(t *testing.T) {
-			runProcessTestRun(t, pt.expectedJsonFilePath, pt.rawJsonFilePath)
+			runProcessTestRun(t, pt)
 		})
 	}
 }
 
 //HELPERS - UTILITIES
 
-func runProcessTestRun(t *testing.T, expectedJsonFilePath string, rawJsonFilePath string) {
+func runProcessTestRun(t *testing.T, jsonExpectedActualFile string) {
+	const expectedJsonFilePath = "./test/data/expected/"
+	const rawJsonFilePath = "./test/data/raw/"
+
 	var expectedTestRun TestRun
 	//read in expected JSON from file
-	expectedJsonBytes, err := ioutil.ReadFile(expectedJsonFilePath)
+	expectedJsonBytes, err := ioutil.ReadFile(expectedJsonFilePath + jsonExpectedActualFile)
 	require.Nil(t, err)
 	require.NotEmpty(t, expectedJsonBytes)
 
@@ -79,7 +63,7 @@ func runProcessTestRun(t *testing.T, expectedJsonFilePath string, rawJsonFilePat
 	require.NoError(t, os.Setenv("JOB_DATE", "Tue Sep 21 21:06:25 2021 -0700"))
 
 	//simulate generating raw "go test -json" output by loading output from saved file
-	actualTestRun := processTestRun(rawJsonFilePath)
+	actualTestRun := processTestRun(rawJsonFilePath + jsonExpectedActualFile)
 
 	checkTestRuns(t, expectedTestRun, actualTestRun)
 }
