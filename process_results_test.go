@@ -13,18 +13,18 @@ import (
 
 //data driven table test
 func TestProcessTestRun(t *testing.T) {
-	processTestMap := map[string]string{
+	testDataMap := map[string]string{
 		"1 count all pass":               "test-result-crypto-hash-1-count-pass.json",
 		"1 count 1 fail the rest pass":   "test-result-crypto-hash-1-count-fail.json",
 		"1 count 2 skiped the rest pass": "test-result-crypto-hash-1-count-skip-pass.json",
 		"2 count all pass":               "test-result-crypto-hash-2-count-pass.json",
 		"10 count all pass":              "test-result-crypto-hash-10-count-pass.json",
-		//"10 count failures":              "test-result-crypto-hash-10-count-fail.json",
+		"10 count some failures":         "test-result-crypto-hash-10-count-fail.json",
 	}
 
-	for k, pt := range processTestMap {
+	for k, testJsonData := range testDataMap {
 		t.Run(k, func(t *testing.T) {
-			runProcessTestRun(t, pt)
+			runProcessTestRun(t, testJsonData)
 		})
 	}
 }
@@ -93,9 +93,9 @@ func checkTestRuns(t *testing.T, expectedTestRun TestRun, actualTestRun TestRun)
 		for testResultIndex := range expectedTestRun.PackageResults[packageIndex].Tests {
 
 			//check all outputs of each test result
-			require.Equal(t, len(expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output), len(actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output))
+			require.Equal(t, len(expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output), len(actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output), fmt.Sprintf("TestResult[%d].Test: %s", testResultIndex, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Test))
 			for testResultOutputIndex := range expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output {
-				require.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output[testResultOutputIndex], actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output[testResultOutputIndex], fmt.Sprintf("error message; PackageResult[%d] TestResult[%d] Output[%d]", packageIndex, testResultIndex, testResultOutputIndex))
+				require.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output[testResultOutputIndex], actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Output[testResultOutputIndex], fmt.Sprintf("PackageResult[%d] TestResult[%d] Output[%d]", packageIndex, testResultIndex, testResultOutputIndex))
 			}
 
 			require.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Package, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Package)
