@@ -43,8 +43,8 @@ func runProcessTestRun(t *testing.T, jsonExpectedActualFile string) {
 
 	json.Unmarshal(expectedJsonBytes, &expectedTestRun)
 
-	//sort all package alphabetically
-	sort.Slice(expectedTestRun.PackageResults, func(i, j int) bool {
+	//sort all package results alphabetically
+	sort.SliceStable(expectedTestRun.PackageResults, func(i, j int) bool {
 		return expectedTestRun.PackageResults[i].Package < expectedTestRun.PackageResults[j].Package
 	})
 

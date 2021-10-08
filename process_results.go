@@ -68,16 +68,30 @@ func processTestRun(rawJsonFilePath string) TestRun {
 		}
 	}()
 
-	//map of package results
-	packageMap := make(map[string]PackageResult)
+	scanner := bufio.NewScanner(f)
 
-	s := bufio.NewScanner(f)
-	for s.Scan() {
+	packageResultMap := processTestRunLineByLine(scanner)
+
+	err = scanner.Err()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	postProcessTestRun(packageResultMap)
+
+	testRun := finalizeTestRun(packageResultMap)
+
+	return testRun
+}
+
+func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
+	packageResultMap := make(map[string]PackageResult)
+	for scanner.Scan() {
 		var rawTestStep RawTestStep
-		json.Unmarshal(s.Bytes(), &rawTestStep)
+		json.Unmarshal(scanner.Bytes(), &rawTestStep)
 
 		//check if package result exists to hold test results
-		packageResult, packageResultExists := packageMap[rawTestStep.Package]
+		packageResult, packageResultExists := packageResultMap[rawTestStep.Package]
 		if !packageResultExists {
 			//if package doesn't exist, create new package result and add it to map
 			var newPackageResult PackageResult
@@ -90,7 +104,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			//package result will hold map of test results
 			newPackageResult.TestMap = make(map[string][]TestResult)
 
-			packageMap[rawTestStep.Package] = newPackageResult
+			packageResultMap[rawTestStep.Package] = newPackageResult
 			packageResult = newPackageResult
 		}
 
@@ -151,46 +165,46 @@ func processTestRun(rawJsonFilePath string) TestRun {
 			switch rawTestStep.Action {
 			case "output":
 				packageResult.Output = append(packageResult.Output, rawTestStep.Output)
-				packageMap[rawTestStep.Package] = packageResult
+				packageResultMap[rawTestStep.Package] = packageResult
 			case "pass":
 				packageResult.Result = rawTestStep.Action
 				packageResult.Elapsed = rawTestStep.Elapsed
-				packageMap[rawTestStep.Package] = packageResult
+				packageResultMap[rawTestStep.Package] = packageResult
 			case "fail":
 				packageResult.Result = rawTestStep.Action
 				packageResult.Elapsed = rawTestStep.Elapsed
-				packageMap[rawTestStep.Package] = packageResult
+				packageResultMap[rawTestStep.Package] = packageResult
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
 		}
 	}
+	return packageResultMap
+}
 
-	err = s.Err()
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func postProcessTestRun(packageResultMap map[string]PackageResult) {
 	//transfer each test result map in each package result to a test result slice
-	for j, packageResult := range packageMap {
+	for j, packageResult := range packageResultMap {
 		for _, testResults := range packageResult.TestMap {
 			packageResult.Tests = append(packageResult.Tests, testResults...)
 		}
-		packageMap[j] = packageResult
+		packageResultMap[j] = packageResult
 
 		//clear test result map once all values transfered to slice - needed for testing so will check against an empty map
-		for k := range packageMap[j].TestMap {
-			delete(packageMap[j].TestMap, k)
+		for k := range packageResultMap[j].TestMap {
+			delete(packageResultMap[j].TestMap, k)
 		}
 	}
 
 	//sort all the test results in each package result slice - needed for testing so it's easy to compare ordered tests
-	for _, pr := range packageMap {
+	for _, pr := range packageResultMap {
 		sort.SliceStable(pr.Tests, func(i, j int) bool {
 			return pr.Tests[i].Test < pr.Tests[j].Test
 		})
 	}
+}
 
+func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 	commitSha := os.Getenv("COMMIT_SHA")
 	if commitSha == "" {
 		panic("COMMIT_SHA can't be empty")
@@ -212,7 +226,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 	testRun.JobRunDate = jobDate
 
 	//add all the package results to the test run
-	for _, pr := range packageMap {
+	for _, pr := range packageResultMap {
 		testRun.PackageResults = append(testRun.PackageResults, pr)
 	}
 
