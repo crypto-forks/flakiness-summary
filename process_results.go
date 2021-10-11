@@ -25,7 +25,30 @@ type TestRun struct {
 	CommitSha      string          `json:"commit_sha"`
 	CommitDate     string          `json:"commit_date"`
 	JobRunDate     string          `json:"job_run_date"`
-	PackageResults []PackageResult `json:"results"` // {
+	PackageResults []PackageResult `json:"results"`
+}
+
+//save TestRun to local JSON file
+func (testRun *TestRun) save() {
+	testRunBytes, err := json.Marshal(testRun)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	t := time.Now()
+	fileName := fmt.Sprintf("test-run-%d-%d-%d-%d-%d-%d-%d.json", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.UnixMilli())
+	//fileName := "test-run-" +
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	_, err = file.Write(testRunBytes)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 //models test result of an entire package which can have multiple tests
@@ -80,6 +103,7 @@ func processTestRun(rawJsonFilePath string) TestRun {
 	postProcessTestRun(packageResultMap)
 
 	testRun := finalizeTestRun(packageResultMap)
+	testRun.save()
 
 	return testRun
 }
