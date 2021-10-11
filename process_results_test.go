@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
 	"testing"
@@ -63,7 +64,10 @@ func runProcessTestRun(t *testing.T, jsonExpectedActualFile string) {
 	require.NoError(t, os.Setenv("JOB_DATE", "Tue Sep 21 21:06:25 2021 -0700"))
 
 	//simulate generating raw "go test -json" output by loading output from saved file
-	actualTestRun := processTestRun(rawJsonFilePath + jsonExpectedActualFile)
+	resultReader := FileResultReader{
+		rawJsonFile: rawJsonFilePath + jsonExpectedActualFile,
+	}
+	actualTestRun := processTestRun(resultReader)
 
 	checkTestRuns(t, expectedTestRun, actualTestRun)
 }
@@ -105,4 +109,25 @@ func checkTestRuns(t *testing.T, expectedTestRun TestRun, actualTestRun TestRun)
 		}
 	}
 	require.Equal(t, expectedTestRun, actualTestRun)
+}
+
+//read raw results from local json file - for testing
+type FileResultReader struct {
+	rawJsonFile string
+}
+
+//return reader for reading from local json file - for testing
+func (fileResultReader FileResultReader) getReader() *os.File {
+	f, err := os.Open(fileResultReader.rawJsonFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return f
+}
+
+func (fileResultReader FileResultReader) close(file *os.File) {
+	err := file.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
 }

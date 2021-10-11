@@ -38,7 +38,6 @@ func (testRun *TestRun) save() {
 
 	t := time.Now()
 	fileName := fmt.Sprintf("test-run-%d-%d-%d-%d-%d-%d-%d.json", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.UnixMilli())
-	//fileName := "test-run-" +
 	file, err := os.Create(fileName)
 	if err != nil {
 		log.Fatal(err)
@@ -78,24 +77,34 @@ type JobOutput struct {
 	Results    map[string]TestResult `json:"Results"`
 }
 
-func processTestRun(rawJsonFilePath string) TestRun {
-	f, err := os.Open(rawJsonFilePath)
-	if err != nil {
-		log.Fatal(err)
-	}
+//this interface gives us the flexibility to read test results in multiple ways - from stdin (for production) and from a local file (for testing)
+type ResultReader interface {
+	getReader() *os.File
+	close(*os.File)
+}
 
-	defer func() {
-		err = f.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
+type StdinResultReader struct {
+}
 
-	scanner := bufio.NewScanner(f)
+//return reader for reading from stdin - for production
+func (stdinResultReader *StdinResultReader) getReader() *os.File {
+	return os.Stdin
+}
+
+//nothing to close when reading from stdin
+func (stdinResultReader *StdinResultReader) close(*os.File) {
+}
+
+//func processTestRun(rawJsonFilePath string) TestRun {
+func processTestRun(resultReader ResultReader) TestRun {
+	reader := resultReader.getReader()
+	scanner := bufio.NewScanner(reader)
+
+	defer resultReader.close(reader)
 
 	packageResultMap := processTestRunLineByLine(scanner)
 
-	err = scanner.Err()
+	err := scanner.Err()
 	if err != nil {
 		log.Fatal(err)
 	}
