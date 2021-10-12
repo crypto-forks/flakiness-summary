@@ -30,7 +30,7 @@ type TestRun struct {
 
 //save TestRun to local JSON file
 func (testRun *TestRun) save() {
-	testRunBytes, err := json.Marshal(testRun)
+	testRunBytes, err := json.MarshalIndent(testRun, "", "  ")
 
 	if err != nil {
 		log.Fatal(err)
@@ -69,14 +69,6 @@ type TestResult struct {
 	Elapsed float32  `json:"elapsed"`
 }
 
-//models github CI test job
-type JobOutput struct {
-	CommitSha  string                `json:"CommitSha"`
-	CommitDate time.Time             `json:"CommitDate"`
-	JobStarted time.Time             `json:"JobStarted"`
-	Results    map[string]TestResult `json:"Results"`
-}
-
 //this interface gives us the flexibility to read test results in multiple ways - from stdin (for production) and from a local file (for testing)
 type ResultReader interface {
 	getReader() *os.File
@@ -87,12 +79,12 @@ type StdinResultReader struct {
 }
 
 //return reader for reading from stdin - for production
-func (stdinResultReader *StdinResultReader) getReader() *os.File {
+func (stdinResultReader StdinResultReader) getReader() *os.File {
 	return os.Stdin
 }
 
 //nothing to close when reading from stdin
-func (stdinResultReader *StdinResultReader) close(*os.File) {
+func (stdinResultReader StdinResultReader) close(*os.File) {
 }
 
 //func processTestRun(rawJsonFilePath string) TestRun {
@@ -153,11 +145,12 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 			switch rawTestStep.Action {
 
 			// Raw JSON result step from `go test -json` execution
-			// There are 4 types of JSON results (specified by Action value) generated for each test run: run, output, pass, fail
-			// sequence of result steps Action types per test:
+			// Sequence of result steps (specified by Action value) types per test:
 			// 1. run (once)
 			// 2. output (one to many)
-			// 3. pass OR fail OR skip (once)
+			// 3. pause (zero or once) - for tests using t.Parallel()
+			// 4. cont (zero or once) - for tests using t.Parallel()
+			// 5. pass OR fail OR skip (once)
 
 			case "run":
 				var newTestResult TestResult
@@ -189,6 +182,10 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Result = rawTestStep.Action
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
 
+			case "pause", "cont":
+				//tests using t.Parallel() will have these values
+				//nothing to do - test will continue to run normally and have a pass/fail result at the end
+
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
@@ -199,16 +196,12 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 			case "output":
 				packageResult.Output = append(packageResult.Output, rawTestStep.Output)
 				packageResultMap[rawTestStep.Package] = packageResult
-			case "pass":
-				packageResult.Result = rawTestStep.Action
-				packageResult.Elapsed = rawTestStep.Elapsed
-				packageResultMap[rawTestStep.Package] = packageResult
-			case "fail":
+			case "pass", "fail", "skip":
 				packageResult.Result = rawTestStep.Action
 				packageResult.Elapsed = rawTestStep.Elapsed
 				packageResultMap[rawTestStep.Package] = packageResult
 			default:
-				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
+				panic(fmt.Sprintf("unexpected action (package): %s", rawTestStep.Action))
 			}
 		}
 	}
@@ -218,9 +211,17 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 func postProcessTestRun(packageResultMap map[string]PackageResult) {
 	//transfer each test result map in each package result to a test result slice
 	for j, packageResult := range packageResultMap {
+
+		//delete skipped packages since they don't have any tests - won't be adding it to result map
+		if packageResult.Result == "skip" {
+			delete(packageResultMap, j)
+			continue
+		}
+
 		for _, testResults := range packageResult.TestMap {
 			packageResult.Tests = append(packageResult.Tests, testResults...)
 		}
+
 		packageResultMap[j] = packageResult
 
 		//clear test result map once all values transfered to slice - needed for testing so will check against an empty map
@@ -243,20 +244,20 @@ func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 		panic("COMMIT_SHA can't be empty")
 	}
 
-	commitDate := os.Getenv("COMMIT_DATE")
-	if commitDate == "" {
-		panic("COMMIT_DATE can't be empty")
+	commitDate, err := time.Parse(time.RFC3339, os.Getenv("COMMIT_DATE"))
+	if err != nil {
+		panic(err)
 	}
 
-	jobDate := os.Getenv("JOB_DATE")
-	if jobDate == "" {
-		panic("JOB_DATE can't be empty")
+	jobDate, err := time.Parse(time.RFC3339, os.Getenv("JOB_DATE"))
+	if err != nil {
+		panic(err)
 	}
 
 	var testRun TestRun
-	testRun.CommitDate = commitDate
+	testRun.CommitDate = commitDate.Format(time.RFC1123Z)
 	testRun.CommitSha = commitSha
-	testRun.JobRunDate = jobDate
+	testRun.JobRunDate = jobDate.Format(time.RFC1123Z)
 
 	//add all the package results to the test run
 	for _, pr := range packageResultMap {
@@ -272,61 +273,9 @@ func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 }
 
 func main() {
-	commitDate, err := time.Parse(time.RFC3339, os.Getenv("COMMIT_DATE"))
-	if err != nil {
-		panic(err)
-	}
+	stdinResultReader := StdinResultReader{}
 
-	fmt.Println("commit date: " + commitDate.String())
-
-	jobStarted, err := time.Parse(time.RFC3339, os.Getenv("JOB_STARTED"))
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("job started date: " + jobStarted.String())
-
-	commit := os.Getenv("COMMIT_SHA")
-	fmt.Println("commit: " + commit)
-
-	jobOutput := JobOutput{
-		CommitSha:  os.Getenv("COMMIT_SHA"),
-		CommitDate: commitDate,
-		JobStarted: jobStarted,
-		Results:    make(map[string]TestResult),
-	}
-
-	fmt.Println(jobOutput)
-
-	// scanner := bufio.NewScanner(os.Stdin)
-	// for scanner.Scan() {
-	// 	var event Event
-	// 	if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-	// 		panic(err)
-	// 	}
-
-	// 	if event.Test == nil {
-	// 		continue
-	// 	}
-
-	// 	switch event.Action {
-	// 	case "run":
-	// 		// TODO
-	// 	case "pass":
-	// 		// TODO
-	// 	case "fail":
-	// 		// TODO
-	// 	case "output":
-	// 		// TODO
-	// 	default:
-	// 		panic(fmt.Sprintf("unexpected action: %s", event.Action))
-	// 	}
-
-	// }
-
-	// if err := scanner.Err(); err != nil {
-	// 	panic(err)
-	// }
+	processTestRun(stdinResultReader)
 
 	// TODO: write results to DB
 

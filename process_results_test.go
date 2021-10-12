@@ -15,12 +15,13 @@ import (
 //data driven table test
 func TestProcessTestRun(t *testing.T) {
 	testDataMap := map[string]string{
-		"1 count all pass":               "test-result-crypto-hash-1-count-pass.json",
-		"1 count 1 fail the rest pass":   "test-result-crypto-hash-1-count-fail.json",
-		"1 count 2 skiped the rest pass": "test-result-crypto-hash-1-count-skip-pass.json",
-		"2 count all pass":               "test-result-crypto-hash-2-count-pass.json",
-		"10 count all pass":              "test-result-crypto-hash-10-count-pass.json",
-		"10 count some failures":         "test-result-crypto-hash-10-count-fail.json",
+		"1 count all pass":                "test-result-crypto-hash-1-count-pass.json",
+		"1 count 1 fail the rest pass":    "test-result-crypto-hash-1-count-fail.json",
+		"1 count 2 skipped the rest pass": "test-result-crypto-hash-1-count-skip-pass.json",
+		"1 count skip all packages":       "test-result-crypto-hash-1-count-skip-all-packages.json", //raw results generated with: go test -json -count 1 --tags relic ./utils/unittest/...
+		"2 count all pass":                "test-result-crypto-hash-2-count-pass.json",
+		"10 count all pass":               "test-result-crypto-hash-10-count-pass.json",
+		"10 count some failures":          "test-result-crypto-hash-10-count-fail.json",
 	}
 
 	for k, testJsonData := range testDataMap {
