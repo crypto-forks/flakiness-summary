@@ -87,7 +87,6 @@ func (stdinResultReader StdinResultReader) getReader() *os.File {
 func (stdinResultReader StdinResultReader) close(*os.File) {
 }
 
-//func processTestRun(rawJsonFilePath string) TestRun {
 func processTestRun(resultReader ResultReader) TestRun {
 	reader := resultReader.getReader()
 	scanner := bufio.NewScanner(reader)
