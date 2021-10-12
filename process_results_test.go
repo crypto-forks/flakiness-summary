@@ -59,9 +59,9 @@ func runProcessTestRun(t *testing.T, jsonExpectedActualFile string) {
 		expectedTestRun.PackageResults[k].TestMap = make(map[string][]TestResult)
 	}
 
-	require.NoError(t, os.Setenv("COMMIT_DATE", "Tue Sep 21 18:06:25 2021 -0700"))
+	require.NoError(t, os.Setenv("COMMIT_DATE", "2021-09-21T18:06:25-07:00"))
 	require.NoError(t, os.Setenv("COMMIT_SHA", "46baf6c6be29af9c040bc14195e195848598bbae"))
-	require.NoError(t, os.Setenv("JOB_DATE", "Tue Sep 21 21:06:25 2021 -0700"))
+	require.NoError(t, os.Setenv("JOB_DATE", "2021-09-21T21:06:25-07:00"))
 
 	//simulate generating raw "go test -json" output by loading output from saved file
 	resultReader := FileResultReader{
