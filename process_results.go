@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"sort"
+	"strings"
 	"time"
 )
 
-//models single line from "go test -json" output
+// models single line from "go test -json" output
 type RawTestStep struct {
 	Time    time.Time `json:"Time"`
 	Action  string    `json:"Action"`
@@ -20,7 +20,7 @@ type RawTestStep struct {
 	Elapsed float32   `json:"Elapsed"`
 }
 
-//models full summary of a test run from "go test -json"
+// models full summary of a test run from "go test -json"
 type TestRun struct {
 	CommitSha      string          `json:"commit_sha"`
 	CommitDate     string          `json:"commit_date"`
@@ -28,29 +28,30 @@ type TestRun struct {
 	PackageResults []PackageResult `json:"results"`
 }
 
-//save TestRun to local JSON file
+// save TestRun to local JSON file
 func (testRun *TestRun) save() {
 	testRunBytes, err := json.MarshalIndent(testRun, "", "  ")
 
 	if err != nil {
-		log.Fatal(err)
+		panic("error marshalling json" + err.Error())
 	}
 
 	t := time.Now()
-	fileName := fmt.Sprintf("test-run-%d-%d-%d-%d-%d-%d-%d.json", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.UnixMilli())
+	fileName := "test-run-" + strings.ReplaceAll(t.Format("2006-01-02-15-04-05.0000"), ".", "-") + ".json"
+
 	file, err := os.Create(fileName)
 	if err != nil {
-		log.Fatal(err)
+		panic("error creating filename: " + err.Error())
 	}
 	defer file.Close()
 
 	_, err = file.Write(testRunBytes)
 	if err != nil {
-		log.Fatal(err)
+		panic("error saving test run to file: " + err.Error())
 	}
 }
 
-//models test result of an entire package which can have multiple tests
+// models test result of an entire package which can have multiple tests
 type PackageResult struct {
 	Package string       `json:"package"`
 	Result  string       `json:"result"`
@@ -60,7 +61,7 @@ type PackageResult struct {
 	TestMap map[string][]TestResult
 }
 
-//models result of a single test that's part of a larger package result
+// models result of a single test that's part of a larger package result
 type TestResult struct {
 	Test    string   `json:"test"`
 	Package string   `json:"package"`
@@ -69,7 +70,7 @@ type TestResult struct {
 	Elapsed float32  `json:"elapsed"`
 }
 
-//this interface gives us the flexibility to read test results in multiple ways - from stdin (for production) and from a local file (for testing)
+// this interface gives us the flexibility to read test results in multiple ways - from stdin (for production) and from a local file (for testing)
 type ResultReader interface {
 	getReader() *os.File
 	close(*os.File)
@@ -78,12 +79,12 @@ type ResultReader interface {
 type StdinResultReader struct {
 }
 
-//return reader for reading from stdin - for production
+// return reader for reading from stdin - for production
 func (stdinResultReader StdinResultReader) getReader() *os.File {
 	return os.Stdin
 }
 
-//nothing to close when reading from stdin
+// nothing to close when reading from stdin
 func (stdinResultReader StdinResultReader) close(*os.File) {
 }
 
@@ -97,7 +98,7 @@ func processTestRun(resultReader ResultReader) TestRun {
 
 	err := scanner.Err()
 	if err != nil {
-		log.Fatal(err)
+		panic("error returning EOF for scanner: " + err.Error())
 	}
 
 	postProcessTestRun(packageResultMap)
@@ -110,29 +111,31 @@ func processTestRun(resultReader ResultReader) TestRun {
 
 func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 	packageResultMap := make(map[string]PackageResult)
+	// reuse the same package result over and over
 	for scanner.Scan() {
 		var rawTestStep RawTestStep
-		json.Unmarshal(scanner.Bytes(), &rawTestStep)
-
-		//check if package result exists to hold test results
-		packageResult, packageResultExists := packageResultMap[rawTestStep.Package]
-		if !packageResultExists {
-			//if package doesn't exist, create new package result and add it to map
-			var newPackageResult PackageResult
-			newPackageResult.Package = rawTestStep.Package
-
-			//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
-			//there are usually 2 or more outputs for a package
-			newPackageResult.Output = make([]string, 0)
-
-			//package result will hold map of test results
-			newPackageResult.TestMap = make(map[string][]TestResult)
-
-			packageResultMap[rawTestStep.Package] = newPackageResult
-			packageResult = newPackageResult
+		err := json.Unmarshal(scanner.Bytes(), &rawTestStep)
+		if err != nil {
+			panic("error unmarshalling raw test step: " + err.Error())
 		}
 
-		//most raw test steps will have Test value - only package specific steps won't
+		// check if package result exists to hold test results
+		packageResult, packageResultExists := packageResultMap[rawTestStep.Package]
+		if !packageResultExists {
+			// if package doesn't exist, add it to map
+			packageResult.Package = rawTestStep.Package
+
+			// store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
+			// there are usually 2 or more outputs for a package
+			packageResult.Output = make([]string, 0)
+
+			// package result will hold map of test results
+			packageResult.TestMap = make(map[string][]TestResult)
+
+			packageResultMap[rawTestStep.Package] = packageResult
+		}
+
+		// most raw test steps will have Test value - only package specific steps won't
 		if rawTestStep.Test != "" {
 
 			lastTestResultIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
@@ -140,7 +143,7 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 				lastTestResultIndex = 0
 			}
 
-			//subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
+			// subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
 			switch rawTestStep.Action {
 
 			// Raw JSON result step from `go test -json` execution
@@ -155,19 +158,13 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 				var newTestResult TestResult
 				newTestResult.Test = rawTestStep.Test
 
-				//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
-				//for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
+				// store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
+				// for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
 				newTestResult.Output = make([]string, 0)
 
-				//if test result doesn't exist, create a new test result add it to the test result slice
-				if !packageResultExists {
-					newTestResults := []TestResult{newTestResult}
-					packageResult.TestMap[rawTestStep.Test] = newTestResults
-				} else {
-					//test result exists but it's a new count / run - append to test result slice
-					packageResult.TestMap[rawTestStep.Test] = append(packageResult.TestMap[rawTestStep.Test], newTestResult)
-					lastTestResultIndex = len(packageResult.TestMap[rawTestStep.Test]) - 1
-				}
+				// append to test result slice, whether it's the first or subsequent test result
+				packageResult.TestMap[rawTestStep.Test] = append(packageResult.TestMap[rawTestStep.Test], newTestResult)
+				lastTestResultIndex = len(packageResult.TestMap[rawTestStep.Test]) - 1
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Package = rawTestStep.Package
 
 			case "output":
@@ -182,15 +179,15 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
 
 			case "pause", "cont":
-				//tests using t.Parallel() will have these values
-				//nothing to do - test will continue to run normally and have a pass/fail result at the end
+				// tests using t.Parallel() will have these values
+				// nothing to do - test will continue to run normally and have a pass/fail result at the end
 
 			default:
 				panic(fmt.Sprintf("unexpected action: %s", rawTestStep.Action))
 			}
 
 		} else {
-			//package level raw messages won't have a Test value
+			// package level raw messages won't have a Test value
 			switch rawTestStep.Action {
 			case "output":
 				packageResult.Output = append(packageResult.Output, rawTestStep.Output)
@@ -208,12 +205,12 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 }
 
 func postProcessTestRun(packageResultMap map[string]PackageResult) {
-	//transfer each test result map in each package result to a test result slice
-	for j, packageResult := range packageResultMap {
+	// transfer each test result map in each package result to a test result slice
+	for packageName, packageResult := range packageResultMap {
 
-		//delete skipped packages since they don't have any tests - won't be adding it to result map
+		// delete skipped packages since they don't have any tests - won't be adding it to result map
 		if packageResult.Result == "skip" {
-			delete(packageResultMap, j)
+			delete(packageResultMap, packageName)
 			continue
 		}
 
@@ -221,15 +218,15 @@ func postProcessTestRun(packageResultMap map[string]PackageResult) {
 			packageResult.Tests = append(packageResult.Tests, testResults...)
 		}
 
-		packageResultMap[j] = packageResult
+		packageResultMap[packageName] = packageResult
 
-		//clear test result map once all values transfered to slice - needed for testing so will check against an empty map
-		for k := range packageResultMap[j].TestMap {
-			delete(packageResultMap[j].TestMap, k)
+		// clear test result map once all values transfered to slice - needed for testing so will check against an empty map
+		for k := range packageResultMap[packageName].TestMap {
+			delete(packageResultMap[packageName].TestMap, k)
 		}
 	}
 
-	//sort all the test results in each package result slice - needed for testing so it's easy to compare ordered tests
+	// sort all the test results in each package result slice - needed for testing so it's easy to compare ordered tests
 	for _, pr := range packageResultMap {
 		sort.SliceStable(pr.Tests, func(i, j int) bool {
 			return pr.Tests[i].Test < pr.Tests[j].Test
@@ -245,12 +242,12 @@ func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 
 	commitDate, err := time.Parse(time.RFC3339, os.Getenv("COMMIT_DATE"))
 	if err != nil {
-		panic(err)
+		panic("error parsing COMMIT_DATE: " + err.Error())
 	}
 
 	jobDate, err := time.Parse(time.RFC3339, os.Getenv("JOB_DATE"))
 	if err != nil {
-		panic(err)
+		panic("error parsing JOB_DATE: " + err.Error())
 	}
 
 	var testRun TestRun
@@ -258,12 +255,12 @@ func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 	testRun.CommitSha = commitSha
 	testRun.JobRunDate = jobDate.Format(time.RFC1123Z)
 
-	//add all the package results to the test run
+	// add all the package results to the test run
 	for _, pr := range packageResultMap {
 		testRun.PackageResults = append(testRun.PackageResults, pr)
 	}
 
-	//sort all package results in the test run
+	// sort all package results in the test run
 	sort.SliceStable(testRun.PackageResults, func(i, j int) bool {
 		return testRun.PackageResults[i].Package < testRun.PackageResults[j].Package
 	})
@@ -272,9 +269,7 @@ func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 }
 
 func main() {
-	stdinResultReader := StdinResultReader{}
-
-	processTestRun(stdinResultReader)
+	processTestRun(StdinResultReader{})
 
 	// TODO: write results to DB
 
