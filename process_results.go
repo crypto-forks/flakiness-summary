@@ -37,7 +37,7 @@ func (testRun *TestRun) save() {
 	}
 
 	t := time.Now()
-	fileName := fmt.Sprintf("test-run-%d-%d-%d-%d-%d-%d-%d.json", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.UnixMilli())
+	fileName := fmt.Sprintf("test-run-%d-%d-%d-%d-%d-%d.json", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second())
 	file, err := os.Create(fileName)
 	if err != nil {
 		log.Fatal(err)
@@ -118,27 +118,22 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 		packageResult, packageResultExists := packageResultMap[rawTestStep.Package]
 		if !packageResultExists {
 			//if package doesn't exist, create new package result and add it to map
-			var newPackageResult PackageResult
-			newPackageResult.Package = rawTestStep.Package
+			packageResult.Package = rawTestStep.Package
 
 			//store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
 			//there are usually 2 or more outputs for a package
-			newPackageResult.Output = make([]string, 0)
+			packageResult.Output = make([]string, 0)
 
 			//package result will hold map of test results
-			newPackageResult.TestMap = make(map[string][]TestResult)
+			packageResult.TestMap = make(map[string][]TestResult)
 
-			packageResultMap[rawTestStep.Package] = newPackageResult
-			packageResult = newPackageResult
+			packageResultMap[rawTestStep.Package] = packageResult
 		}
 
 		//most raw test steps will have Test value - only package specific steps won't
 		if rawTestStep.Test != "" {
-
-			lastTestResultIndex := len(packageResult.TestMap[rawTestStep.Test]) - 1
-			if lastTestResultIndex < 0 {
-				lastTestResultIndex = 0
-			}
+			testResults := packageResult.TestMap[rawTestStep.Test]
+			lastTestResultIndex := len(testResults) - 1
 
 			//subsequent raw json outputs will have different data about the test - whether it passed/failed, what the test output was, etc
 			switch rawTestStep.Action {
@@ -159,27 +154,19 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 				//for passing tests, there are usually 2 outputs for a passing test and more outputs for a failing test
 				newTestResult.Output = make([]string, 0)
 
-				//if test result doesn't exist, create a new test result add it to the test result slice
-				if !packageResultExists {
-					newTestResults := []TestResult{newTestResult}
-					packageResult.TestMap[rawTestStep.Test] = newTestResults
-				} else {
-					//test result exists but it's a new count / run - append to test result slice
-					packageResult.TestMap[rawTestStep.Test] = append(packageResult.TestMap[rawTestStep.Test], newTestResult)
-					lastTestResultIndex = len(packageResult.TestMap[rawTestStep.Test]) - 1
-				}
-				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Package = rawTestStep.Package
+				newTestResult.Package = rawTestStep.Package
 
+				// append to test result slice
+				packageResult.TestMap[rawTestStep.Test] = append(testResults, newTestResult)
 			case "output":
-				testResults, ok := packageResult.TestMap[rawTestStep.Test]
-				if !ok {
+				if len(testResults) == 0 {
 					panic(fmt.Sprintf("no test result for test %s", rawTestStep.Test))
 				}
-				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Output = append(testResults[lastTestResultIndex].Output, rawTestStep.Output)
+				testResults[lastTestResultIndex].Output = append(testResults[lastTestResultIndex].Output, rawTestStep.Output)
 
 			case "pass", "fail", "skip":
-				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Result = rawTestStep.Action
-				packageResult.TestMap[rawTestStep.Test][lastTestResultIndex].Elapsed = rawTestStep.Elapsed
+				testResults[lastTestResultIndex].Result = rawTestStep.Action
+				testResults[lastTestResultIndex].Elapsed = rawTestStep.Elapsed
 
 			case "pause", "cont":
 				//tests using t.Parallel() will have these values
