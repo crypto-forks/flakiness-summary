@@ -109,8 +109,8 @@ func processTestRun(resultReader ResultReader) TestRun {
 	return testRun
 }
 
-func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
-	packageResultMap := make(map[string]PackageResult)
+func processTestRunLineByLine(scanner *bufio.Scanner) map[string]*PackageResult {
+	packageResultMap := make(map[string]*PackageResult)
 	// reuse the same package result over and over
 	for scanner.Scan() {
 		var rawTestStep RawTestStep
@@ -122,16 +122,16 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 		// check if package result exists to hold test results
 		packageResult, packageResultExists := packageResultMap[rawTestStep.Package]
 		if !packageResultExists {
-			// if package doesn't exist, add it to map
-			packageResult.Package = rawTestStep.Package
+			packageResult = &PackageResult{
+				Package: rawTestStep.Package,
 
-			// store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
-			// there are usually 2 or more outputs for a package
-			packageResult.Output = make([]string, 0)
+				// package result will hold map of test results
+				TestMap: make(map[string][]TestResult),
 
-			// package result will hold map of test results
-			packageResult.TestMap = make(map[string][]TestResult)
-
+				// store outputs as a slice of strings - that's how "go test -json" outputs each output string on a separate line
+				// there are usually 2 or more outputs for a package
+				Output: make([]string, 0),
+			}
 			packageResultMap[rawTestStep.Package] = packageResult
 		}
 
@@ -147,7 +147,7 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 			switch rawTestStep.Action {
 
 			// Raw JSON result step from `go test -json` execution
-			// Sequence of result steps (specified by Action value) types per test:
+			// Sequence of result steps (specified by Action value) per test:
 			// 1. run (once)
 			// 2. output (one to many)
 			// 3. pause (zero or once) - for tests using t.Parallel()
@@ -191,11 +191,9 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 			switch rawTestStep.Action {
 			case "output":
 				packageResult.Output = append(packageResult.Output, rawTestStep.Output)
-				packageResultMap[rawTestStep.Package] = packageResult
 			case "pass", "fail", "skip":
 				packageResult.Result = rawTestStep.Action
 				packageResult.Elapsed = rawTestStep.Elapsed
-				packageResultMap[rawTestStep.Package] = packageResult
 			default:
 				panic(fmt.Sprintf("unexpected action (package): %s", rawTestStep.Action))
 			}
@@ -204,7 +202,7 @@ func processTestRunLineByLine(scanner *bufio.Scanner) map[string]PackageResult {
 	return packageResultMap
 }
 
-func postProcessTestRun(packageResultMap map[string]PackageResult) {
+func postProcessTestRun(packageResultMap map[string]*PackageResult) {
 	// transfer each test result map in each package result to a test result slice
 	for packageName, packageResult := range packageResultMap {
 
@@ -217,8 +215,6 @@ func postProcessTestRun(packageResultMap map[string]PackageResult) {
 		for _, testResults := range packageResult.TestMap {
 			packageResult.Tests = append(packageResult.Tests, testResults...)
 		}
-
-		packageResultMap[packageName] = packageResult
 
 		// clear test result map once all values transfered to slice - needed for testing so will check against an empty map
 		for k := range packageResultMap[packageName].TestMap {
@@ -234,7 +230,7 @@ func postProcessTestRun(packageResultMap map[string]PackageResult) {
 	}
 }
 
-func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
+func finalizeTestRun(packageResultMap map[string]*PackageResult) TestRun {
 	commitSha := os.Getenv("COMMIT_SHA")
 	if commitSha == "" {
 		panic("COMMIT_SHA can't be empty")
@@ -257,7 +253,7 @@ func finalizeTestRun(packageResultMap map[string]PackageResult) TestRun {
 
 	// add all the package results to the test run
 	for _, pr := range packageResultMap {
-		testRun.PackageResults = append(testRun.PackageResults, pr)
+		testRun.PackageResults = append(testRun.PackageResults, *pr)
 	}
 
 	// sort all package results in the test run
