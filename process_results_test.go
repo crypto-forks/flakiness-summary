@@ -43,7 +43,8 @@ func runProcessTestRun(t *testing.T, jsonExpectedActualFile string) {
 	require.Nil(t, err)
 	require.NotEmpty(t, expectedJsonBytes)
 
-	json.Unmarshal(expectedJsonBytes, &expectedTestRun)
+	err = json.Unmarshal(expectedJsonBytes, &expectedTestRun)
+	require.Nil(t, err)
 
 	// sort all package results alphabetically
 	sort.SliceStable(expectedTestRun.PackageResults, func(i, j int) bool {
@@ -68,7 +69,7 @@ func runProcessTestRun(t *testing.T, jsonExpectedActualFile string) {
 	resultReader := FileResultReader{
 		rawJsonFile: rawJsonFilePath + jsonExpectedActualFile,
 	}
-	actualTestRun := processTestRun(resultReader)
+	actualTestRun := processTestRun(&resultReader)
 
 	checkTestRuns(t, expectedTestRun, actualTestRun)
 }
@@ -109,26 +110,29 @@ func checkTestRuns(t *testing.T, expectedTestRun TestRun, actualTestRun TestRun)
 			require.Equal(t, expectedTestRun.PackageResults[packageIndex].Tests[testResultIndex].Result, actualTestRun.PackageResults[packageIndex].Tests[testResultIndex].Result)
 		}
 	}
+	// finally, compare the entire actual test run against what's expected - if there were any discrepancies they should have been caught by now
 	require.Equal(t, expectedTestRun, actualTestRun)
 }
 
 // read raw results from local json file - for testing
 type FileResultReader struct {
 	rawJsonFile string
+	file        *os.File
 }
 
 // return reader for reading from local json file - for testing
-func (fileResultReader FileResultReader) getReader() *os.File {
+func (fileResultReader *FileResultReader) getReader() *os.File {
 	f, err := os.Open(fileResultReader.rawJsonFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("error opening file: " + err.Error())
 	}
+	fileResultReader.file = f
 	return f
 }
 
-func (fileResultReader FileResultReader) close(file *os.File) {
-	err := file.Close()
+func (fileResultReader *FileResultReader) close() {
+	err := fileResultReader.file.Close()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("error closing file: " + err.Error())
 	}
 }

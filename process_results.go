@@ -73,7 +73,7 @@ type TestResult struct {
 // this interface gives us the flexibility to read test results in multiple ways - from stdin (for production) and from a local file (for testing)
 type ResultReader interface {
 	getReader() *os.File
-	close(*os.File)
+	close()
 }
 
 type StdinResultReader struct {
@@ -85,14 +85,14 @@ func (stdinResultReader StdinResultReader) getReader() *os.File {
 }
 
 // nothing to close when reading from stdin
-func (stdinResultReader StdinResultReader) close(*os.File) {
+func (stdinResultReader StdinResultReader) close() {
 }
 
 func processTestRun(resultReader ResultReader) TestRun {
 	reader := resultReader.getReader()
 	scanner := bufio.NewScanner(reader)
 
-	defer resultReader.close(reader)
+	defer resultReader.close()
 
 	packageResultMap := processTestRunLineByLine(scanner)
 
